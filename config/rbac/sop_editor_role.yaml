@@ -1,0 +1,24 @@
+# permissions for end users to edit sops.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sop-editor-role
+rules:
+- apiGroups:
+  - app.integreatly.org
+  resources:
+  - sops
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - app.integreatly.org
+  resources:
+  - sops/status
+  verbs:
+  - get
