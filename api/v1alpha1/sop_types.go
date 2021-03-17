@@ -22,12 +22,12 @@ import (
 
 // SOPSpec defines the desired state of SOP
 type SOPSpec struct {
-	Identifier   string      `json:"identifier"`
+	Identifier string `json:"identifier"`
 }
 
 // SOPStatus defines the observed state of SOP
 type SOPStatus struct {
-	Phase        string      `json:"phase"`
+	Phase string `json:"phase"`
 }
 
 // +kubebuilder:object:root=true
