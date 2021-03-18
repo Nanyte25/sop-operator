@@ -1,6 +1,6 @@
 apiVersion: app.integreatly.org/v1alpha1
 kind: SOP
 metadata:
-  name: sop-sample
+  name: sop-sample-3scale
 spec:
   identifier: 3scale-backup

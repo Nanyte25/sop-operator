@@ -1,0 +1,6 @@
+apiVersion: app.integreatly.org/v1alpha1
+kind: SOP
+metadata:
+  name: sop-sample-amq
+spec:
+  identifier: amq-backup
