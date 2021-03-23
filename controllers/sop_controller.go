@@ -32,7 +32,7 @@ import (
 
 // SOPReconciler reconciles a SOP object
 type SOPReconciler struct {
-	client.Client
+	Client client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
@@ -44,8 +44,10 @@ type SOPReconciler struct {
 func (r *SOPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("sop", req.NamespacedName)
 
+	logger.Info("Beginning SOP reconiliation...")
+
 	instance := &appv1alpha1.SOP{}
-	err := r.Get(context.TODO(), req.NamespacedName, instance)
+	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
 
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -67,6 +69,8 @@ func (r *SOPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		sopactions.Backup3Scale()
 	case "amq-backup":
 		sopactions.BackupAMQ()
+	case "rhsso-upgrade":
+		sopactions.UpgradeRHSSO(ctx, r.Client)
 	default:
 		logger.Errorf("Unknown sop identifier: %s", identifier)
 	}
