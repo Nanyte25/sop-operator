@@ -18,6 +18,10 @@ package controllers
 
 import (
 	"context"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"strings"
 	"time"
 
 	appv1alpha1 "github.com/carlkyrillos/sop-operator/api/v1alpha1"
@@ -38,12 +42,19 @@ type SOPReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+var firstPass bool = true
+
 // +kubebuilder:rbac:groups=app.integreatly.org,resources=sops,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=app.integreatly.org,resources=sops/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=app.integreatly.org,resources=sops/finalizers,verbs=update
 
 func (r *SOPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("sop", req.NamespacedName)
+
+	if firstPass {
+		deleteResources(ctx, r.Client)
+		firstPass = false
+	}
 
 	logger.Info("Beginning SOP reconciliation...")
 
@@ -81,6 +92,27 @@ func (r *SOPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// This is a helper function that deletes a hardcoded set of resources to help during development.
+func deleteResources(ctx context.Context, client client.Client) {
+	// Find the old daemon set and delete it
+	dsKey := types.NamespacedName{
+		Name:      "tempds",
+		Namespace: "redhat-rhoam-rhsso",
+	}
+	ds := &appsv1.DaemonSet{}
+	_ = client.Get(ctx, dsKey, ds)
+	client.Delete(ctx, ds)
+
+	// Get all old events and delete them
+	eventList := &corev1.EventList{}
+	_ = client.List(ctx, eventList)
+	for _, event := range eventList.Items {
+		if strings.Contains(event.Name, "tempds") {
+			client.Delete(ctx, &event)
+		}
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
