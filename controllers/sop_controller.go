@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"time"
 
 	appv1alpha1 "github.com/carlkyrillos/sop-operator/api/v1alpha1"
 	"github.com/carlkyrillos/sop-operator/controllers/sopactions"
@@ -27,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // SOPReconciler reconciles a SOP object
@@ -44,7 +45,7 @@ type SOPReconciler struct {
 func (r *SOPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("sop", req.NamespacedName)
 
-	logger.Info("Beginning SOP reconiliation...")
+	logger.Info("Beginning SOP reconciliation...")
 
 	instance := &appv1alpha1.SOP{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
@@ -70,7 +71,11 @@ func (r *SOPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	case "amq-backup":
 		sopactions.BackupAMQ()
 	case "rhsso-upgrade":
-		sopactions.UpgradeRHSSO(ctx, r.Client)
+		err = sopactions.UpgradeRHSSO(ctx, r.Client)
+		// Error upgrading RHSSO. Requeue the request.
+		if err != nil {
+			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+		}
 	default:
 		logger.Errorf("Unknown sop identifier: %s", identifier)
 	}
