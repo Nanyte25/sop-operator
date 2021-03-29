@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // SOPReconciler reconciles a SOP object
@@ -42,7 +42,7 @@ type SOPReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-var firstPass bool = true
+var firstPass = true
 
 // +kubebuilder:rbac:groups=app.integreatly.org,resources=sops,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=app.integreatly.org,resources=sops/status,verbs=get;update;patch
@@ -72,7 +72,12 @@ func (r *SOPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return reconcile.Result{}, err
 	}
 
-	// Parse identifier and direct to proper action if possible.
+	// If the status is already complete, return and don't requeue.
+	if instance.Status.Phase == "complete" {
+		return ctrl.Result{}, nil
+	}
+
+	// Otherwise, parse identifier and direct to proper action if possible.
 	identifier := instance.Spec.Identifier
 	logger.Infof("Found sop: %s", identifier)
 
@@ -82,10 +87,21 @@ func (r *SOPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	case "amq-backup":
 		sopactions.BackupAMQ()
 	case "rhsso-upgrade":
+		// Set phase to in progress.
+		instance.Status.Phase = "in progress"
+		_ = r.Client.Status().Update(context.TODO(), instance)
+
+		// Upgrade RHSSO
 		err = sopactions.UpgradeRHSSO(ctx, r.Client)
-		// Error upgrading RHSSO. Requeue the request.
+
 		if err != nil {
+			// An error occurred while upgrading RHSSO. Requeue the request.
 			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+		} else {
+			// No errors present. Set phase to complete.
+			instance.Status.Phase = "complete"
+			_ = r.Client.Status().Update(context.TODO(), instance)
+			return ctrl.Result{}, nil
 		}
 	default:
 		logger.Errorf("Unknown sop identifier: %s", identifier)
@@ -103,14 +119,20 @@ func deleteResources(ctx context.Context, client client.Client) {
 	}
 	ds := &appsv1.DaemonSet{}
 	_ = client.Get(ctx, dsKey, ds)
-	client.Delete(ctx, ds)
+	err := client.Delete(ctx, ds)
+	if err != nil {
+		logger.Error("unable to delete old daemon set")
+	}
 
 	// Get all old events and delete them
 	eventList := &corev1.EventList{}
 	_ = client.List(ctx, eventList)
 	for _, event := range eventList.Items {
 		if strings.Contains(event.Name, "tempds") {
-			client.Delete(ctx, &event)
+			err := client.Delete(ctx, &event)
+			if err != nil {
+				logger.Error("unable to delete old events")
+			}
 		}
 	}
 }
